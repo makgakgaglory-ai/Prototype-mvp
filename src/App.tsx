@@ -3,25 +3,26 @@ import React, { useState } from 'react';
 // ==========================================
 // SYSTEM TYPE INTERFACES
 // ==========================================
-export type UserRole = 'LANDING' | 'SCHOOL' | 'SPONSOR';
-export type DashboardTab = 'OVERVIEW' | 'SCHOOLS' | 'TRANSACTIONS' | 'REPORTS';
+export type UserRole = 'LANDING' | 'SCHOOL' | 'SPONSOR' | 'LOGIN';
+export type SubView = 'DASHBOARD' | 'BROWSE_SCHOOLS' | 'MY_REQUESTS' | 'MY_PLEDGES' | 'TRANSACTIONS' | 'REPORTS' | 'IMPACT' | 'VOUCHERS' | 'PROFILE';
 
 export interface SchoolRequest {
   id: string;
   schoolName: string;
   location: string;
-  category: 'Textbooks' | 'Sanitation' | 'Sports' | 'Stationery' | 'Electronics';
+  category: 'Textbooks' | 'Infrastructure' | 'Sport Equipment' | 'Classroom Furniture' | 'Sanitation' | 'Sports' | 'Stationery';
   quantity: number;
   motivation: string;
   urgency: 'Low' | 'Medium' | 'High' | 'Urgent' | 'Active';
   targetAmount: number;
   currentAmount: number;
-  status: 'Pending (Waiting for sponsor review)' | 'Approved (Sponsor accepted request)' | 'Completed (Funds allocated)';
+  status: 'Pending' | 'Under Review' | 'Approved' | 'Completed' | 'Voucher Issued' | 'Redeemed';
   supplier: string;
+  date: string;
 }
 
 // ==========================================
-// SEED DATA REFLECTING SYSTEM LOGIC
+// SEED DATA MATCHING THE DESIGN
 // ==========================================
 const initialRequests: SchoolRequest[] = [
   {
@@ -33,407 +34,491 @@ const initialRequests: SchoolRequest[] = [
     motivation: 'Core curriculum learning guidelines lack sufficient book resources for foundational development sets.',
     urgency: 'Urgent',
     targetAmount: 4200,
-    currentAmount: 4200,
-    status: 'Completed (Funds allocated)',
-    supplier: 'Waltons Office Supplies'
+    currentAmount: 1596,
+    status: 'Pending',
+    supplier: 'Waltons Office Supplies',
+    date: '2 hours ago'
   },
   {
     id: 'REQ-002',
     schoolName: 'Siyakhula High',
     location: 'Eastern Cape · Quintile 2',
-    category: 'Sanitation',
+    category: 'Sport Equipment',
     quantity: 12,
     motivation: 'Awaiting specialized programmatic facility hardware restoration frameworks to address capacity conditions.',
     urgency: 'Active',
-    targetAmount: 8000,
-    currentAmount: 5760,
-    status: 'Approved (Sponsor accepted request)',
-    supplier: 'BuildIt Logistics'
+    targetAmount: 8500,
+    currentAmount: 8500,
+    status: 'Approved',
+    supplier: 'BuildIt Logistics',
+    date: '1 day ago'
   },
   {
     id: 'REQ-003',
     schoolName: 'Ikageng Combined',
     location: 'North West · Quintile 5',
-    category: 'Sports',
+    category: 'Classroom Furniture',
     quantity: 45,
     motivation: 'Extracurricular inventory setup requirements need replacement kits to ensure structural team safety compliance.',
     urgency: 'Active',
-    targetAmount: 3400,
-    currentAmount: 0,
-    status: 'Pending (Waiting for sponsor review)',
-    supplier: 'Local Logistics Hub'
+    targetAmount: 120000,
+    currentAmount: 60000,
+    status: 'Under Review',
+    supplier: 'Local Logistics Hub',
+    date: '3 days ago'
+  },
+  {
+    id: 'REQ-004',
+    schoolName: 'Bophelong Secondary',
+    location: 'Gauteng · Quintile 3',
+    category: 'Stationery',
+    quantity: 300,
+    motivation: 'General study packages including workbooks and tools for mathematics distribution batches.',
+    urgency: 'Low',
+    targetAmount: 5600,
+    currentAmount: 5600,
+    status: 'Completed',
+    supplier: 'Waltons Office Supplies',
+    date: '5 days ago'
   }
 ];
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<UserRole | 'LOGIN'>('LANDING');
-  const [activeRole, setActiveRole] = useState<UserRole>('LANDING');
-  const [activeTab, setActiveTab] = useState<DashboardTab>('OVERVIEW');
+  const [currentView, setCurrentView] = useState<UserRole>('LANDING');
+  const [activeRole, setActiveRole] = useState<'SCHOOL' | 'SPONSOR' | null>(null);
+  const [subView, setSubView] = useState<SubView>('DASHBOARD');
   const [loginTab, setLoginTab] = useState<'SPONSOR' | 'SCHOOL'>('SPONSOR');
   const [requests, setRequests] = useState<SchoolRequest[]>(initialRequests);
-  const [selectedRequest, setSelectedRequest] = useState<SchoolRequest | null>(null);
   
-  // UI Flow Notification Banners (Next Step Guidance)
-  const [guidanceMessage, setGuidanceMessage] = useState<{current: string; next: string; outcome: string} | null>(null);
+  // Modal & Input state setups
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [newCategory, setNewCategory] = useState<any>('Textbooks');
+  const [newQty, setNewQty] = useState('');
+  const [newCost, setNewCost] = useState('');
+  const [newMotivation, setNewMotivation] = useState('');
 
-  // Form Management States
-  const [showRequestWizard, setShowRequestWizard] = useState(false);
-  const [pledgeAmount, setPledgeAmount] = useState<string>('');
-  const [newCategory, setNewCategory] = useState<SchoolRequest['category']>('Textbooks');
-  const [newQty, setNewQty] = useState<string>('');
-  const [newCost, setNewCost] = useState<string>('');
-  const [newMotivation, setNewMotivation] = useState<string>('');
-
-  // ==========================================
-  // EVENT HANDLERS & SIMULATORS
-  // ==========================================
-  const handleLoginSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setActiveRole(loginTab);
-    setCurrentView(loginTab);
-    setActiveTab('OVERVIEW');
-    setShowRequestWizard(false);
-    setSelectedRequest(null);
-
-    // Contextual Step guidance instantly upon authentication entry point
-    if (loginTab === 'SCHOOL') {
-      setGuidanceMessage({
-        current: "Registered & Verified Profile",
-        next: "Submit a sponsorship request using the primary CTA below",
-        outcome: "Get matched to a corporate sponsor voucher pipeline"
-      });
-    } else {
-      setGuidanceMessage({
-        current: "Authenticated Sponsor Profile",
-        next: "Navigate to the 'Schools' tab to evaluate active requests",
-        outcome: "Deploy targeted corporate CSI / B-BBEE funding allocations"
-      });
-    }
+  const handleLogin = (role: 'SCHOOL' | 'SPONSOR') => {
+    setActiveRole(role);
+    setCurrentView(role);
+    setSubView('DASHBOARD');
   };
 
   const handleLogout = () => {
-    setActiveRole('LANDING');
+    setActiveRole(null);
     setCurrentView('LANDING');
-    setGuidanceMessage(null);
+    setSubView('DASHBOARD');
+  };
+
+  const scrollToSection = (id: string) => {
+    // If the user isn't on the landing page, bring them back first
+    if (currentView !== 'LANDING') {
+      setCurrentView('LANDING');
+      // Timeout allows the DOM node to mount completely before calculating position offsets
+      setTimeout(() => {
+        const element = document.getElementById(id);
+        if (element) element.scrollIntoView({ behavior: 'smooth' });
+      }, 80);
+    } else {
+      const element = document.getElementById(id);
+      if (element) element.scrollIntoView({ behavior: 'smooth' });
+    }
   };
 
   const handleCreateRequest = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCost || Number(newCost) <= 0) return;
+    if (!newCost || !newQty) return;
 
     const newReq: SchoolRequest = {
       id: `REQ-00${requests.length + 1}`,
       schoolName: 'Demo School Instance',
       location: 'Gauteng · Quintile 2',
       category: newCategory,
-      quantity: Number(newQty) || 1,
-      motivation: newMotivation || 'General structural resource augmentation allocation.',
+      quantity: Number(newQty),
+      motivation: newMotivation || 'Standard operational educational resource allocation requirement.',
       urgency: 'Active',
       targetAmount: Number(newCost),
       currentAmount: 0,
-      status: 'Pending (Waiting for sponsor review)',
-      supplier: 'Regional Logistical Vendor'
+      status: 'Pending',
+      supplier: 'Approved Regional Supplier Framework',
+      date: 'Just now'
     };
 
     setRequests([newReq, ...requests]);
-    setShowRequestWizard(false);
-    setActiveTab('OVERVIEW');
-    
-    // Set next step notification blueprint
-    setGuidanceMessage({
-      current: "Request Submitted Successfully",
-      next: "Awaiting Corporate Sponsor Evaluation match",
-      outcome: "Approved parameters trigger direct vendor voucher dispatch"
-    });
-
-    // Reset Form
+    setShowRequestModal(false);
     setNewQty('');
     setNewCost('');
     setNewMotivation('');
-  };
-
-  const handlePledgeSubmit = (id: string) => {
-    const amount = Number(pledgeAmount);
-    if (!amount || amount <= 0) return;
-
-    setRequests(prev => prev.map(req => {
-      if (req.id === id) {
-        const totalFunded = req.currentAmount + amount;
-        const fullyFunded = totalFunded >= req.targetAmount;
-        return {
-          ...req,
-          currentAmount: Math.min(totalFunded, req.targetAmount),
-          status: fullyFunded ? 'Completed (Funds allocated)' : 'Approved (Sponsor accepted request)'
-        };
-      }
-      return req;
-    }));
-
-    setPledgeAmount('');
-    setSelectedRequest(null);
-    setActiveTab('TRANSACTIONS');
-
-    setGuidanceMessage({
-      current: "Pledge Funds Committed",
-      next: "System processing closed-loop digital supply chain vouchers",
-      outcome: "Direct product delivery to school with audited CSI track receipt"
-    });
+    setSubView('DASHBOARD');
   };
 
   return (
-    <div className="min-h-screen bg-[#F4F1EA] text-slate-800 flex flex-col font-sans antialiased">
+    <div className="min-h-screen bg-[#F8F9FA] text-slate-900 font-sans antialiased flex flex-col scroll-smooth">
       
-      {/* GLOBAL NAVIGATION BAR */}
-      <nav className="bg-white border-b border-slate-200 sticky top-0 z-50 px-8 py-4 flex justify-between items-center shadow-sm">
-        <div className="flex items-center gap-8">
-          <div className="flex items-center gap-1.5 cursor-pointer" onClick={handleLogout}>
-            <span className="text-xl font-black tracking-tight text-slate-900">
-              Sponsor<span className="text-[#D39313]">Buddy</span>
-            </span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4">
-          {activeRole !== 'LANDING' ? (
-            <div className="flex items-center gap-4">
-              <span className="text-xs bg-amber-50 text-amber-800 border border-amber-200/60 font-semibold px-2.5 py-1 rounded">
-                Console: {activeRole} Portal
+      {/* =========================================================================
+          PUBLIC VISITOR INTERFACE (MARKETING & ONBOARDING PORTAL)
+         ========================================================================= */}
+      {currentView === 'LANDING' && (
+        <>
+          <nav className="bg-white border-b border-slate-100 sticky top-0 z-50 px-8 py-4 flex justify-between items-center shadow-xs">
+            <div className="flex items-center gap-10">
+              <span className="text-xl font-black tracking-tight text-slate-900 cursor-pointer" onClick={() => setCurrentView('LANDING')}>
+                Sponsor<span className="text-[#D39313]">Buddy</span>
               </span>
-              <button onClick={handleLogout} className="text-xs font-bold text-slate-400 hover:text-slate-900 transition uppercase tracking-wider">
-                Sign Out
-              </button>
-            </div>
-          ) : (
-            <button onClick={() => setCurrentView('LOGIN')} className="bg-[#D39313] hover:bg-[#B77F0F] text-white text-xs font-bold px-4 py-2 rounded shadow-sm tracking-wide transition">
-              Portal Access Gateway &rarr;
-            </button>
-          )}
-        </div>
-      </nav>
-
-      {/* SYSTEM BODY OVERVIEW CONTAINER */}
-      <main className="flex-1 flex flex-col items-center justify-start w-full">
-        
-        {/* LANDING MARKETING SCREEN */}
-        {currentView === 'LANDING' && (
-          <div className="w-full text-center py-24 bg-[#1E1C1A] text-white px-6">
-            <h1 className="text-4xl font-black mb-4">Transparent Giving Infrastructure</h1>
-            <p className="text-stone-400 text-sm max-w-md mx-auto mb-6">Zero cash leakage. Direct itemised resource fulfillment channels for South African public schools.</p>
-            <button onClick={() => setCurrentView('LOGIN')} className="bg-[#D39313] text-white text-xs font-bold px-6 py-3 rounded-lg uppercase">
-              Enter Platform Gateway
-            </button>
-          </div>
-        )}
-
-        {/* ACCESS LOG-IN SYSTEM */}
-        {currentView === 'LOGIN' && (
-          <div className="w-full max-w-md mx-auto my-16 bg-white p-8 rounded-2xl border border-slate-200 shadow-xl space-y-6">
-            <div className="bg-slate-100 p-1 rounded-lg grid grid-cols-2 text-center text-xs font-bold">
-              <button onClick={() => setLoginTab('SPONSOR')} className={`py-2 rounded-md transition ${loginTab === 'SPONSOR' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`}>Corporate Sponsor</button>
-              <button onClick={() => setLoginTab('SCHOOL')} className={`py-2 rounded-md transition ${loginTab === 'SCHOOL' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`}>School Head</button>
-            </div>
-            <form onSubmit={handleLoginSubmit} className="space-y-4">
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Access Identifier</label>
-                <input type="email" required placeholder="user@node.co.za" className="w-full text-xs border p-2.5 rounded-lg focus:outline-none focus:border-[#D39313]" />
+              <div className="hidden md:flex items-center gap-6 text-sm font-semibold text-slate-500">
+                <span onClick={() => { setCurrentView('LANDING'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="hover:text-slate-900 cursor-pointer transition">Home</span>
+                <span onClick={() => scrollToSection('metrics-panel')} className="hover:text-slate-900 cursor-pointer transition">Find a School</span>
+                <span onClick={() => scrollToSection('how-it-works-panel')} className="hover:text-slate-900 cursor-pointer transition">How It Works</span>
+                <span onClick={() => scrollToSection('onboarding-console')} className="hover:text-slate-900 cursor-pointer transition">For Sponsors</span>
               </div>
-              <button type="submit" className="w-full bg-[#D39313] hover:bg-[#B77F0F] text-white text-xs font-bold py-3 rounded-lg uppercase tracking-wide">
-                Authorize Profile &rarr;
-              </button>
-            </form>
-          </div>
-        )}
-
-        {/* UNIFIED ROBUST DASHBOARD ROUTER FOR SPONSORS AND SCHOOLS */}
-        {(currentView === 'SPONSOR' || currentView === 'SCHOOL') && (
-          <div className="w-full max-w-7xl mx-auto p-6 space-y-6">
-            
-            {/* 🟢 BREADCRUMBS NAVIGATION CONSISTENCY FRAMEWORK */}
-            <div className="text-[11px] text-slate-400 font-medium flex items-center gap-1.5 bg-white px-4 py-2 rounded-lg border border-slate-200/60 w-fit">
-              <span className="hover:text-slate-900 cursor-pointer" onClick={handleLogout}>Home</span>
-              <span>&gt;</span>
-              <span className="hover:text-slate-900 cursor-pointer" onClick={() => { setActiveTab('OVERVIEW'); setSelectedRequest(null); setShowRequestWizard(false); }}>
-                {activeRole === 'SPONSOR' ? 'Sponsor Console' : 'School Infrastructure Panel'}
-              </span>
-              <span>&gt;</span>
-              <span className="text-slate-800 font-bold capitalize">{activeTab.toLowerCase()}</span>
-              {selectedRequest && (
-                <>
-                  <span>&gt;</span>
-                  <span className="text-[#D39313] font-bold">Fulfillment ({selectedRequest.id})</span>
-                </>
-              )}
-              {showRequestWizard && (
-                <>
-                  <span>&gt;</span>
-                  <span className="text-[#D39313] font-bold">Sponsorship Request Creator</span>
-                </>
-              )}
             </div>
+            <div className="flex items-center gap-4">
+              <button onClick={() => { setLoginTab('SPONSOR'); setCurrentView('LOGIN'); }} className="text-sm font-bold text-slate-600 hover:text-slate-900 transition px-3 py-2">Log In</button>
+              <button onClick={() => { setLoginTab('SPONSOR'); setCurrentView('LOGIN'); }} className="bg-[#D39313] hover:bg-[#B77F0F] text-white text-xs font-bold px-4 py-2.5 rounded-lg shadow-sm transition">Get Started</button>
+            </div>
+          </nav>
 
-            {/* 🔴 NEXT STEP GUIDANCE NOTIFICATION ENGINE */}
-            {guidanceMessage && (
-              <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 p-4 rounded-xl shadow-sm relative">
-                <button onClick={() => setGuidanceMessage(null)} className="absolute top-3 right-3 text-slate-400 hover:text-slate-900 font-bold text-xs">✕</button>
-                <p className="text-[10px] font-bold text-amber-800 uppercase tracking-wider mb-2">💡 System Logic Roadmap Guidance</p>
-                <div className="flex flex-wrap items-center gap-4 text-xs">
-                  <div className="bg-white px-2.5 py-1 rounded border border-amber-200/80"><span className="text-slate-400 font-medium">You are here:</span> <strong className="text-slate-700">{guidanceMessage.current}</strong></div>
-                  <span className="text-slate-400 font-bold">&rarr;</span>
-                  <div className="bg-amber-600 px-2.5 py-1 rounded text-white shadow-sm"><span className="text-amber-100 font-medium">Next Step:</span> <strong>{guidanceMessage.next}</strong></div>
-                  <span className="text-slate-400 font-bold">&rarr;</span>
-                  <div className="bg-white px-2.5 py-1 rounded border border-emerald-200 text-emerald-800"><span className="text-slate-400 font-medium">Outcome:</span> <strong>{guidanceMessage.outcome}</strong></div>
+          {/* MAIN HERO PROMO GRAPHIC BANNER */}
+          <div className="bg-[#1E1C1A] text-white py-20 px-6 text-center bg-gradient-to-b from-stone-800 to-[#1E1C1A] border-b border-stone-900 relative">
+            <div className="max-w-4xl mx-auto space-y-6">
+              <span className="text-xs font-bold tracking-widest text-[#D39313] uppercase block">Connecting Sponsors to Schools</span>
+              <h1 className="text-4xl sm:text-5xl font-black tracking-tight leading-tight max-w-2xl mx-auto">
+                Fund What Schools <span className="text-[#D39313]">Actually Need.</span>
+              </h1>
+              <p className="text-sm sm:text-base text-stone-400 max-w-xl mx-auto leading-relaxed">
+                A transparent B2B2C marketplace connecting verified South African public schools with corporate sponsors — no cash, no guesswork.
+              </p>
+              <div className="flex flex-wrap justify-center gap-4 pt-2">
+                <button onClick={() => { setLoginTab('SPONSOR'); setCurrentView('LOGIN'); }} className="bg-[#D39313] hover:bg-[#B77F0F] text-white font-bold text-xs px-6 py-3 rounded-lg shadow-md transition uppercase tracking-wide">Browse Schools ↗</button>
+                <button onClick={() => { setLoginTab('SCHOOL'); setCurrentView('LOGIN'); }} className="bg-transparent hover:bg-white/5 text-white font-bold text-xs px-6 py-3 rounded-lg border border-stone-700 transition">Register Your School</button>
+              </div>
+            </div>
+          </div>
+
+          {/* NEW GRAPHICAL SEGMENTED ONBOARDING CONSOLE MAPPER ("I WANT TO...") */}
+          <div id="onboarding-console" className="max-w-7xl mx-auto w-full px-6 -mt-8 relative z-20 scroll-mt-24">
+            <div className="bg-[#111111] border border-stone-800/80 rounded-2xl p-6 grid grid-cols-1 md:grid-cols-3 gap-6 shadow-2xl text-stone-300">
+              <div className="p-4 rounded-xl hover:bg-stone-900/60 transition group border border-transparent hover:border-stone-800 flex items-start gap-4">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500 font-bold">🏢</div>
+                <div className="space-y-1">
+                  <h3 className="font-bold text-white text-sm">I'm a Sponsor</h3>
+                  <p className="text-xs text-stone-400">Browse schools and make real structural CSI impact footprints.</p>
+                  <button onClick={() => { setLoginTab('SPONSOR'); setCurrentView('LOGIN'); }} className="text-xs font-bold text-amber-500 pt-1 block group-hover:underline">Get Started &rarr;</button>
                 </div>
               </div>
-            )}
-
-            {/* INTEGRATED CENTRAL ROLE CONTROL HEADER */}
-            <div className="bg-[#1E1C1A] text-white p-8 rounded-2xl shadow-md flex flex-wrap justify-between items-center gap-6">
-              <div className="space-y-1">
-                <span className="text-[10px] font-bold text-[#D39313] uppercase tracking-widest block">Role Landing Point Cluster</span>
-                <h2 className="text-2xl font-black tracking-tight">
-                  {activeRole === 'SCHOOL' ? 'Welcome back, Demo School Instance Node' : 'Welcome back, Corporate Sponsor Allocation Node'}
-                </h2>
-                <p className="text-xs text-stone-400">Manage, trace, and execute localized itemised resource loops from one centralized console track.</p>
+              <div className="p-4 rounded-xl hover:bg-stone-900/60 transition group border border-transparent hover:border-stone-800 flex items-start gap-4">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500 font-bold">🏫</div>
+                <div className="space-y-1">
+                  <h3 className="font-bold text-white text-sm">I'm a School</h3>
+                  <p className="text-xs text-stone-400">Request sponsorship allocations for precise, itemized resources needed.</p>
+                  <button onClick={() => { setLoginTab('SCHOOL'); setCurrentView('LOGIN'); }} className="text-xs font-bold text-amber-500 pt-1 block group-hover:underline">Get Started &rarr;</button>
+                </div>
               </div>
+              <div className="p-4 rounded-xl hover:bg-stone-900/60 transition group border border-transparent hover:border-stone-800 flex items-start gap-4">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500 font-bold">ℹ️</div>
+                <div className="space-y-1">
+                  <h3 className="font-bold text-white text-sm">Learn More</h3>
+                  <p className="text-xs text-stone-400">See how SponsorBuddy routes closed-loop voucher infrastructure safely.</p>
+                  <span onClick={() => scrollToSection('how-it-works-panel')} className="text-xs font-bold text-amber-500 pt-1 block cursor-pointer group-hover:underline">Learn More &rarr;</span>
+                </div>
+              </div>
+            </div>
+          </div>
 
-              {/* 🟠 HIGH-VISIBILITY PRIMARY ACTIONS (CRITICAL FIXES FOR VISIBILITY & ACCESSIBILITY) */}
-              <div className="flex flex-wrap gap-3">
-                {activeRole === 'SCHOOL' && (
-                  <button onClick={() => { setShowRequestWizard(true); setSelectedRequest(null); }} className="bg-[#D39313] hover:bg-[#B77F0F] text-white font-bold text-xs px-5 py-3 rounded-xl shadow-lg tracking-wide transition uppercase">
-                    ➕ Request Sponsorship (PRIMARY CTA)
-                  </button>
-                )}
-                {activeRole === 'SPONSOR' && (
-                  <button onClick={() => { setActiveTab('SCHOOLS'); setSelectedRequest(null); }} className="bg-[#D39313] hover:bg-[#B77F0F] text-white font-bold text-xs px-5 py-3 rounded-xl shadow-lg tracking-wide transition uppercase">
-                    🔍 Browse Schools & Make Pledge (PRIMARY CTA)
-                  </button>
-                )}
-                <button onClick={() => alert('Compiling structural platform ledger audit metrics... Export downloaded.')} className="bg-stone-800 hover:bg-stone-700 text-stone-200 border border-stone-700 font-bold text-xs px-4 py-3 rounded-xl transition flex items-center gap-1.5">
-                  📥 Export Report (Secondary)
-                </button>
+          {/* PUBLIC REVENUE TRACK RECORDS */}
+          <div id="metrics-panel" className="w-full bg-white border-b border-slate-200/60 max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 divide-x divide-slate-100 py-10 mt-12 text-center rounded-xl shadow-xs scroll-mt-24">
+            <div>
+              <p className="text-3xl font-black text-slate-900">2,400+</p>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Schools Registered</p>
+            </div>
+            <div>
+              <p className="text-3xl font-black text-slate-900">R 18M+</p>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Pledged to Date</p>
+            </div>
+            <div>
+              <p className="text-3xl font-black text-slate-900">100%</p>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Voucher-Based</p>
+            </div>
+            <div>
+              <p className="text-3xl font-black text-slate-900">B-BBEE</p>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">CSI Compliant</p>
+            </div>
+          </div>
+
+          {/* HOW IT WORKS PROCESS PIPELINE FLOW BLOCK */}
+          <div id="how-it-works-panel" className="max-w-7xl mx-auto w-full px-6 py-20 text-center space-y-12 scroll-mt-24">
+            <div className="space-y-2">
+              <h2 className="text-3xl font-black tracking-tight text-slate-900">How It Works</h2>
+              <p className="text-sm text-slate-500 max-w-md mx-auto">Four simple steps from verified institutional need to real-world community impact.</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 text-left">
+              {[
+                { step: '1', title: 'Schools Register', desc: 'Schools create an EMIS-verified profile containing precise itemized request requirements.' },
+                { step: '2', title: 'Request Sponsorship', desc: 'Schools log structural resource pipelines directly matching localized curriculum guidelines.' },
+                { step: '3', title: 'Sponsors Pledge', desc: 'Corporates commit CSI capital directly via secure closed-loop programmatic digital supply channels.' },
+                { step: '4', title: 'Impact Delivered', desc: 'Vouchers route to audited supplier hubs, feeding transparency ledger lines for scorecards.' }
+              ].map(item => (
+                <div key={item.step} className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-xs relative space-y-4">
+                  <div className="w-8 h-8 rounded-full bg-amber-500 text-white font-black text-xs flex items-center justify-center shadow-xs">{item.step}</div>
+                  <div className="space-y-1">
+                    <h4 className="font-bold text-slate-900 text-sm">{item.title}</h4>
+                    <p className="text-xs text-slate-500 leading-relaxed">{item.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <footer className="bg-stone-950 text-stone-500 py-10 border-t border-stone-900 mt-auto text-center text-xs">
+            <p>© 2026 SponsorBuddy (Pty) Ltd. All rights reserved. CIPC Documentation Compliance Registered Profile Node.</p>
+          </footer>
+        </>
+      )}
+
+      {/* =========================================================================
+          LOGIN CONTROLLER GATEWAY
+         ========================================================================= */}
+      {currentView === 'LOGIN' && (
+        <div className="flex-1 flex items-center justify-center p-6 bg-[#FAF9F6]">
+          <div className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden grid grid-cols-1 md:grid-cols-2 min-h-[500px]">
+            <div className="bg-[#1E1C1A] p-12 flex flex-col justify-between text-white bg-gradient-to-b from-stone-800 to-stone-950">
+              <span className="text-lg font-black tracking-tight text-white cursor-pointer" onClick={() => setCurrentView('LANDING')}>
+                Sponsor<span className="text-[#D39313]">Buddy</span>
+              </span>
+              <div className="space-y-4">
+                <span className="text-[10px] font-bold text-amber-500 tracking-widest uppercase block">Welcome Back</span>
+                <h2 className="text-3xl font-black tracking-tight max-w-xs">Continue making school funding transparent.</h2>
+                <p className="text-xs text-stone-400 max-w-xs leading-relaxed">Log in to manage active pledges, audit voucher tracks, or pull regulatory CSI tax compliance validation forms.</p>
+              </div>
+              <div className="bg-stone-900/60 border border-stone-800 p-3 rounded-xl inline-flex items-center gap-3 w-fit text-[11px] font-bold text-amber-400">
+                <span>🛡️ 100% Voucher-Based Giving Pipeline</span>
               </div>
             </div>
 
-            {/* 🟠 PERSISTENT SINGLE-PAGE INTERACTIVE DASHBOARD TABS MANAGEMENT */}
-            <div className="bg-white p-1 rounded-xl border border-slate-200/80 grid grid-cols-4 text-center text-xs font-bold shadow-sm">
-              <button onClick={() => { setActiveTab('OVERVIEW'); setSelectedRequest(null); setShowRequestWizard(false); }} className={`py-3 rounded-lg transition ${activeTab === 'OVERVIEW' && !showRequestWizard && !selectedRequest ? 'bg-slate-900 text-white shadow' : 'text-slate-400 hover:text-slate-600'}`}>
-                📊 Overview Hub
-              </button>
-              <button onClick={() => { setActiveTab('SCHOOLS'); setSelectedRequest(null); setShowRequestWizard(false); }} className={`py-3 rounded-lg transition ${activeTab === 'SCHOOLS' && !showRequestWizard && !selectedRequest ? 'bg-slate-900 text-white shadow' : 'text-slate-400 hover:text-slate-600'}`}>
-                🏫 Schools & Active Requests
-              </button>
-              <button onClick={() => { setActiveTab('TRANSACTIONS'); setSelectedRequest(null); setShowRequestWizard(false); }} className={`py-3 rounded-lg transition ${activeTab === 'TRANSACTIONS' && !showRequestWizard && !selectedRequest ? 'bg-slate-900 text-white shadow' : 'text-slate-400 hover:text-slate-600'}`}>
-                💼 Ledger Transactions
-              </button>
-              <button onClick={() => { setActiveTab('REPORTS'); setSelectedRequest(null); setShowRequestWizard(false); }} className={`py-3 rounded-lg transition ${activeTab === 'REPORTS' && !showRequestWizard && !selectedRequest ? 'bg-slate-900 text-white shadow' : 'text-slate-400 hover:text-slate-600'}`}>
-                📈 Compliance Reports
-              </button>
-            </div>
-
-            {/* BACK ACTIONS WHEN WIZARDS/DETAILS INTERRUPT THE TAB VIEW */}
-            {(showRequestWizard || selectedRequest) && (
-              <button onClick={() => { setShowRequestWizard(false); setSelectedRequest(null); }} className="text-xs font-bold text-slate-500 hover:text-slate-900 transition flex items-center gap-1">
-                &larr; Back to Single Dashboard Tabs View
-              </button>
-            )}
-
-            {/* ==========================================
-                DYNAMIC SUB-CONTENT RENDERING LOOPS
-               ========================================== */}
-            
-            {/* WIZARD FRAME: REQUEST SPONSORSHIP FORM */}
-            {showRequestWizard && activeRole === 'SCHOOL' && (
-              <div className="bg-white border border-slate-200 rounded-xl p-6 max-w-xl mx-auto shadow-md">
-                <h3 className="font-black text-sm text-slate-900 mb-2 uppercase tracking-wide">Submit New Resource Need Pipeline</h3>
-                <p className="text-slate-400 text-xs mb-4">Provide exact logistical system metric specifications for item procurement tracking arrays.</p>
-                <form onSubmit={handleCreateRequest} className="space-y-4 text-xs">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block font-bold text-slate-500 uppercase mb-1">Resource Category</label>
-                      <select value={newCategory} onChange={e => setNewCategory(e.target.value as any)} className="w-full border p-2 rounded bg-white">
-                        <option value="Textbooks">Textbooks</option>
-                        <option value="Sanitation">Sanitation</option>
-                        <option value="Sports">Sports</option>
-                        <option value="Stationery">Stationery</option>
-                        <option value="Electronics">Electronics</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block font-bold text-slate-500 uppercase mb-1">Quantity Units</label>
-                      <input type="number" required placeholder="e.g., 200" value={newQty} onChange={e => setNewQty(e.target.value)} className="w-full border p-2 rounded" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block font-bold text-slate-500 uppercase mb-1">Estimated Supplier Framework Cost (ZAR)</label>
-                    <input type="number" required placeholder="e.g., 6500" value={newCost} onChange={e => setNewCost(e.target.value)} className="w-full border p-2 rounded" />
-                  </div>
-                  <div>
-                    <label className="block font-bold text-slate-500 uppercase mb-1">Motivation Declaration Statement</label>
-                    <textarea required rows={3} placeholder="Describe exact contextual framework urgency parameters..." value={newMotivation} onChange={e => setNewMotivation(e.target.value)} className="w-full border p-2 rounded"></textarea>
-                  </div>
-                  <button type="submit" className="w-full bg-[#D39313] text-white font-bold py-2.5 rounded-lg uppercase tracking-wide text-xs">
-                    Inject Request Node into Verified Tracking Matrix ↗
-                  </button>
-                </form>
+            <div className="p-12 flex flex-col justify-center space-y-6 bg-white">
+              <div className="space-y-2">
+                <h3 className="text-2xl font-black text-slate-900">Log in</h3>
+                <p className="text-xs text-slate-400">Access your dashboard node infrastructure instantly.</p>
               </div>
-            )}
-
-            {/* WIZARD FRAME: PLEDGE ESCROW COMMITMENT DETAIL VIEW */}
-            {selectedRequest && activeRole === 'SPONSOR' && (
-              <div className="bg-white p-6 rounded-xl border border-slate-200 max-w-xl mx-auto space-y-4 shadow-md">
-                <h3 className="font-black text-base text-slate-900">Fulfill Request Cluster for {selectedRequest.schoolName}</h3>
-                <div className="p-3 bg-slate-50 rounded text-xs text-slate-600 font-mono space-y-1">
-                  <p><strong>Item Batch Need:</strong> {selectedRequest.category} ({selectedRequest.quantity} units)</p>
-                  <p><strong>Supplier Target cost:</strong> R {selectedRequest.targetAmount}</p>
-                  <p><strong>Remaining Required:</strong> R {selectedRequest.targetAmount - selectedRequest.currentAmount}</p>
+              <div className="bg-slate-100 p-1 rounded-xl grid grid-cols-2 text-center text-xs font-bold">
+                <button onClick={() => setLoginTab('SPONSOR')} className={`py-2.5 rounded-lg transition ${loginTab === 'SPONSOR' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-400'}`}>Sponsor</button>
+                <button onClick={() => setLoginTab('SCHOOL')} className={`py-2.5 rounded-lg transition ${loginTab === 'SCHOOL' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-400'}`}>School</button>
+              </div>
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase tracking-wider font-bold text-slate-400 block">Email Address</label>
+                  <input type="email" defaultValue={loginTab === 'SPONSOR' ? 'corporate@acme.co.za' : 'principal@demo-school.edu.za'} className="w-full text-xs border border-slate-200 p-3 rounded-xl focus:outline-none focus:border-[#D39313] bg-slate-50/50" />
                 </div>
                 <div className="space-y-1">
-                  <label className="block text-[10px] font-bold uppercase text-slate-400">Pledge Level Amount Allocation (ZAR)</label>
-                  <input type="number" placeholder="Enter ZAR value" value={pledgeAmount} onChange={e => setPledgeAmount(e.target.value)} className="w-full text-xs border p-2.5 rounded-lg" />
+                  <div className="flex justify-between items-center">
+                    <label className="text-[10px] uppercase tracking-wider font-bold text-slate-400 block">Password</label>
+                    <span className="text-[10px] font-bold text-[#D39313] hover:underline cursor-pointer">Forgot?</span>
+                  </div>
+                  <input type="password" defaultValue="password123" className="w-full text-xs border border-slate-200 p-3 rounded-xl focus:outline-none focus:border-[#D39313] bg-slate-50/50" />
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={() => handlePledgeSubmit(selectedRequest.id)} className="bg-[#D39313] hover:bg-[#B77F0F] text-white font-bold text-xs px-4 py-2 rounded-lg">Commit Audited Digital Pledge</button>
-                  <button onClick={() => setSelectedRequest(null)} className="border px-4 py-2 text-xs font-bold rounded-lg text-slate-400">Cancel</button>
+                <button onClick={() => handleLogin(loginTab)} className="w-full bg-[#D39313] hover:bg-[#B77F0F] text-white text-xs font-bold py-3.5 rounded-xl shadow-md transition uppercase tracking-wider">Log In to Dashboard &rarr;</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          AUTHENTICATED APPLICATION SUITE LAYOUT (DARK COMPACT INTERFACES)
+         ========================================================================= */}
+      {(currentView === 'SPONSOR' || currentView === 'SCHOOL') && (
+        <div className="flex-1 flex min-h-0 bg-[#0F1115]">
+          
+          {/* FIXED LEFT SIDEBAR COMPACT CONTROL DASHBOARD MODULE */}
+          <aside className="w-64 bg-[#161920] border-r border-slate-800/60 p-4 flex flex-col justify-between shrink-0 text-slate-400">
+            <div className="space-y-8">
+              <div className="px-3 py-2 flex items-center gap-2">
+                <div className="w-7 h-7 bg-amber-500 rounded-lg flex items-center justify-center font-black text-xs text-white">SB</div>
+                <span className="text-base font-black tracking-tight text-white cursor-pointer" onClick={handleLogout}>
+                  Sponsor<span className="text-[#D39313]">Buddy</span>
+                </span>
+              </div>
+
+              {/* ROUTING BUTTON TRACK MATRIX */}
+              <nav className="space-y-1 text-xs font-bold">
+                <button onClick={() => setSubView('DASHBOARD')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${subView === 'DASHBOARD' ? 'bg-amber-500/10 text-amber-500 border-l-4 border-amber-500 pl-2' : 'hover:bg-slate-800/50 text-slate-400'}`}>📊 Dashboard</button>
+                {activeRole === 'SPONSOR' ? (
+                  <>
+                    <button onClick={() => setSubView('BROWSE_SCHOOLS')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${subView === 'BROWSE_SCHOOLS' ? 'bg-amber-500/10 text-amber-500 border-l-4 border-amber-500 pl-2' : 'hover:bg-slate-800/50 text-slate-400'}`}>🔍 Browse Schools</button>
+                    <button onClick={() => setSubView('MY_PLEDGES')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${subView === 'MY_PLEDGES' ? 'bg-amber-500/10 text-amber-500 border-l-4 border-amber-500 pl-2' : 'hover:bg-slate-800/50 text-slate-400'}`}>🤝 My Pledges</button>
+                    <button onClick={() => setSubView('TRANSACTIONS')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${subView === 'TRANSACTIONS' ? 'bg-amber-500/10 text-amber-500 border-l-4 border-amber-500 pl-2' : 'hover:bg-slate-800/50 text-slate-400'}`}>💸 Transactions</button>
+                  </>
+                ) : (
+                  <>
+                    <button onClick={() => setSubView('MY_REQUESTS')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${subView === 'MY_REQUESTS' ? 'bg-amber-500/10 text-amber-500 border-l-4 border-amber-500 pl-2' : 'hover:bg-slate-800/50 text-slate-400'}`}>📋 My Requests</button>
+                    <button onClick={() => setSubView('VOUCHERS')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${subView === 'VOUCHERS' ? 'bg-amber-500/10 text-amber-500 border-l-4 border-amber-500 pl-2' : 'hover:bg-slate-800/50 text-slate-400'}`}>🎟️ Vouchers</button>
+                  </>
+                )}
+                <button onClick={() => setSubView('REPORTS')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${subView === 'REPORTS' ? 'bg-amber-500/10 text-amber-500 border-l-4 border-amber-500 pl-2' : 'hover:bg-slate-800/50 text-slate-400'}`}>📈 Reports <span className="text-[9px] bg-amber-500 text-white font-mono px-1 rounded ml-auto">NEW</span></button>
+                <button onClick={() => setSubView('IMPACT')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${subView === 'IMPACT' ? 'bg-amber-500/10 text-amber-500 border-l-4 border-amber-500 pl-2' : 'hover:bg-slate-800/50 text-slate-400'}`}>🌱 Impact</button>
+                {activeRole === 'SCHOOL' && (
+                  <button onClick={() => setSubView('PROFILE')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${subView === 'PROFILE' ? 'bg-amber-500/10 text-amber-500 border-l-4 border-amber-500 pl-2' : 'hover:bg-slate-800/50 text-slate-400'}`}>🏫 School Profile</button>
+                )}
+              </nav>
+            </div>
+
+            <div className="border-t border-slate-800 pt-4 text-xs font-bold space-y-3">
+              <div className="flex items-center gap-3 px-2">
+                <div className="w-8 h-8 rounded-full bg-stone-700 text-stone-200 font-bold flex items-center justify-center uppercase text-[10px]">
+                  {activeRole === 'SPONSOR' ? 'AG' : 'DS'}
+                </div>
+                <div className="truncate">
+                  <p className="text-white text-[11px] truncate">{activeRole === 'SPONSOR' ? 'Acme Corporate Group' : 'Demo School Instance'}</p>
+                  <p className="text-[10px] text-slate-500 truncate font-mono">{activeRole === 'SPONSOR' ? 'CSI Manager Node' : 'EMIS Verified Node'}</p>
                 </div>
               </div>
-            )}
+              <button onClick={handleLogout} className="w-full text-left px-3 py-2 text-stone-500 hover:text-white transition text-[11px] uppercase tracking-wider block">Sign Out &rarr;</button>
+            </div>
+          </aside>
 
-            {/* NORMAL DATA TAB WORKFLOW CORES */}
-            {!showRequestWizard && !selectedRequest && (
-              <>
-                {/* TAB 1: OVERVIEW COMPONENT TRACK */}
-                {activeTab === 'OVERVIEW' && (
-                  <div className="space-y-6">
-                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                      <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm">
-                        <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase block">Active Metric Scope</span>
-                        <p className="text-xl font-black text-slate-900 mt-1">{requests.length} System Needs Listed</p>
+          {/* APPLICATION MAIN STAGE LAYOUT VIEWS */}
+          <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
+            
+            {/* TOP HEADER CONSOLE BLOCK ACTIONS */}
+            <header className="bg-[#161920] border-b border-slate-800/60 px-8 py-4 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-3">
+                {/* Back to Home Navigation breadcrumb inside app panels */}
+                <span onClick={handleLogout} className="text-xs text-slate-500 hover:text-[#D39313] transition cursor-pointer font-bold uppercase tracking-wider">&larr; Public Portal</span>
+                <span className="text-slate-700 text-xs">/</span>
+                <h2 className="text-sm font-black text-white uppercase tracking-wider">{subView.replace('_', ' ')} Console View</h2>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-xs text-slate-400 cursor-pointer hover:text-white">🔔</div>
+                {activeRole === 'SCHOOL' && (
+                  <button onClick={() => setShowRequestModal(true)} className="bg-[#D39313] hover:bg-[#B77F0F] text-white text-xs font-bold px-4 py-2 rounded-lg shadow transition">➕ Request Sponsorship</button>
+                )}
+                {activeRole === 'SPONSOR' && (
+                  <button onClick={() => setSubView('BROWSE_SCHOOLOS' as any)} className="bg-[#D39313] hover:bg-[#B77F0F] text-white text-xs font-bold px-4 py-2 rounded-lg shadow transition">✨ New Pledge ↗</button>
+                )}
+              </div>
+            </header>
+
+            <div className="p-8 max-w-7xl w-full mx-auto space-y-8 flex-1">
+              
+              {/* =========================================================================
+                  SPONSOR VIEW: CUSTOM DESIGN IMPLEMENTATION
+                 ========================================================================= */}
+              {activeRole === 'SPONSOR' && subView === 'DASHBOARD' && (
+                <div className="space-y-8">
+                  <div className="bg-[#161920] border border-slate-800/60 p-8 rounded-2xl flex flex-wrap justify-between items-center gap-6 shadow-xl relative overflow-hidden">
+                    <div className="space-y-1">
+                      <h2 className="text-2xl font-black text-white tracking-tight">Welcome back, Sponsor!</h2>
+                      <p className="text-xs text-slate-400">Here's what's happening with your corporate CSI impact allocation footprint profiles.</p>
+                    </div>
+                  </div>
+
+                  {/* METRIC GRID BANNER ROW */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {[
+                      { label: 'Total Pledged', value: 'R 4.2M', subtitle: 'View details →', border: 'border-t-amber-500' },
+                      { label: 'Schools Supported', value: '36', subtitle: 'View schools →', border: 'border-t-blue-500' },
+                      { label: 'Vouchers Redeemed', value: '128', subtitle: 'View transactions →', border: 'border-t-emerald-500' },
+                      { label: 'Provinces Reached', value: '5', subtitle: 'View impact →', border: 'border-t-purple-500' }
+                    ].map((card, i) => (
+                      <div key={i} className={`bg-[#161920] border border-slate-800/60 p-5 rounded-xl text-left border-t-4 ${card.border} shadow-sm space-y-1`}>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{card.label}</span>
+                        <p className="text-2xl font-black text-white">{card.value}</p>
+                        <span className="text-[10px] font-bold text-[#D39313] block cursor-pointer hover:underline pt-1">{card.subtitle}</span>
                       </div>
-                      <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm">
-                        <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase block">Aggregated Ledger Level</span>
-                        <p className="text-xl font-black text-slate-900 mt-1">R {requests.reduce((a,c) => a + c.currentAmount, 0).toLocaleString()}</p>
+                    ))}
+                  </div>
+
+                  {/* LOWER LAYER STRUCTURAL DATA SPLIT PANELS */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="lg:col-span-2 bg-[#161920] border border-slate-800/60 rounded-xl p-6 space-y-4">
+                      <h3 className="text-xs font-bold text-white uppercase tracking-wider">Recent Activity Framework Matrix</h3>
+                      <div className="space-y-3">
+                        {requests.slice(0, 3).map(req => (
+                          <div key={req.id} className="p-4 bg-[#1C202B] border border-slate-800/60 rounded-xl flex justify-between items-center gap-4 text-xs">
+                            <div className="flex items-start gap-3">
+                              <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-500 font-bold flex items-center justify-center">🤝</div>
+                              <div>
+                                <p className="text-white font-bold">Pledge of R {(req.targetAmount/2).toLocaleString()} to {req.schoolName}</p>
+                                <span className="text-[10px] text-slate-500 block font-mono mt-0.5">{req.date}</span>
+                              </div>
+                            </div>
+                            <span className="text-[10px] bg-emerald-500/10 text-emerald-400 font-mono px-2 py-0.5 rounded border border-emerald-500/20 uppercase font-bold">Completed</span>
+                          </div>
+                        ))}
                       </div>
                     </div>
 
-                    {/* MAIN EXPLICITLY SELF-EXPLAINING TRACKING LIST (🔴 3: STATUS LABELS FIXED) */}
-                    <div className="bg-white rounded-xl border border-slate-200/80 p-6 space-y-4">
-                      <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide">Live Pipeline Execution State Logs</h3>
+                    <div className="bg-[#161920] border border-slate-800/60 rounded-xl p-6 space-y-4">
+                      <h3 className="text-xs font-bold text-white uppercase tracking-wider">Top Impact Areas</h3>
+                      <div className="space-y-4 pt-2">
+                        {[
+                          { category: 'Education Resources', pct: '45%', color: 'bg-amber-500' },
+                          { category: 'Infrastructure', pct: '30%', color: 'bg-blue-500' },
+                          { category: 'Sport Equipment', pct: '15%', color: 'bg-emerald-500' },
+                          { category: 'Other', pct: '10%', color: 'bg-slate-600' }
+                        ].map((item, i) => (
+                          <div key={i} className="space-y-1.5 text-xs">
+                            <div className="flex justify-between items-center text-[11px] font-bold">
+                              <span className="text-slate-300">{item.category}</span>
+                              <span className="text-white font-mono">{item.pct}</span>
+                            </div>
+                            <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                              <div className={`h-full ${item.color}`} style={{ width: item.pct }}></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* =========================================================================
+                  SCHOOL VIEW: CUSTOM DESIGN IMPLEMENTATION
+                 ========================================================================= */}
+              {activeRole === 'SCHOOL' && subView === 'DASHBOARD' && (
+                <div className="space-y-8">
+                  <div className="bg-[#161920] border border-slate-800/60 p-8 rounded-2xl flex flex-wrap justify-between items-center gap-6 shadow-xl relative overflow-hidden">
+                    <div className="space-y-1">
+                      <h2 className="text-2xl font-black text-white tracking-tight">Welcome back, School!</h2>
+                      <p className="text-xs text-slate-400">Track your verified resource requests pipelines and sponsorship logs securely.</p>
+                    </div>
+                  </div>
+
+                  {/* SCHOOL METRIC STATUS ROW DISPLAY */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {[
+                      { label: 'Active Requests', value: '3', subtitle: 'View requests →', border: 'border-t-amber-500' },
+                      { label: 'Approved', value: '1', subtitle: 'View details →', border: 'border-t-blue-500' },
+                      { label: 'Completed', value: '0', subtitle: 'View details →', border: 'border-t-emerald-500' },
+                      { label: 'Total Value Received', value: 'R 120,000', subtitle: 'View vouchers →', border: 'border-t-purple-500' }
+                    ].map((card, i) => (
+                      <div key={i} className={`bg-[#161920] border border-slate-800/60 p-5 rounded-xl text-left border-t-4 ${card.border} shadow-sm space-y-1`}>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{card.label}</span>
+                        <p className="text-2xl font-black text-white">{card.value}</p>
+                        <span className="text-[10px] font-bold text-[#D39313] block cursor-pointer hover:underline pt-1">{card.subtitle}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* LOWER LAYER SPLIT PIPELINES */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="lg:col-span-2 bg-[#161920] border border-slate-800/60 rounded-xl p-6 space-y-4">
+                      <h3 className="text-xs font-bold text-white uppercase tracking-wider">Recent Updates</h3>
                       <div className="space-y-3">
                         {requests.map(req => (
-                          <div key={req.id} className="p-4 border border-slate-100 rounded-xl bg-slate-50/50 flex flex-wrap justify-between items-center gap-4 text-xs">
-                            <div className="space-y-1">
+                          <div key={req.id} className="p-4 bg-[#1C202B] border border-slate-800/60 rounded-xl flex justify-between items-center text-xs">
+                            <div>
                               <div className="flex items-center gap-2">
-                                <span className="font-mono text-[9px] font-bold text-slate-400 bg-white border px-1.5 py-0.5 rounded">{req.id}</span>
-                                <h4 className="font-bold text-slate-900">{req.schoolName}</h4>
+                                <span className="font-mono text-[9px] bg-slate-800 text-slate-400 border border-slate-700 px-1 py-0.5 rounded font-bold">{req.id}</span>
+                                <p className="text-white font-bold">Your request for {req.category} is currently {req.status.toLowerCase()}</p>
                               </div>
-                              <p className="text-slate-500">{req.category} Need Kit Grid — Level target: R {req.targetAmount}</p>
+                              <span className="text-[10px] text-slate-500 block font-mono mt-1">Track Log · Budget Framework: R {req.targetAmount.toLocaleString()}</span>
                             </div>
-                            
-                            {/* EXPLICIT STATUS ENGINE SHOWING EXACT LOGIC SYSTEM PATTERNS */}
-                            <span className={`px-3 py-1 font-bold rounded-lg text-[10px] uppercase tracking-wide border ${
-                              req.status.includes('Pending') ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                              req.status.includes('Approved') ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                              'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            <span className={`text-[9px] font-mono px-2 py-0.5 rounded border uppercase font-bold tracking-wider ${
+                              req.status === 'Pending' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                              req.status === 'Under Review' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+                              req.status === 'Approved' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                              'bg-purple-500/10 text-purple-400 border-purple-500/20'
                             }`}>
                               {req.status}
                             </span>
@@ -441,110 +526,95 @@ export default function App() {
                         ))}
                       </div>
                     </div>
-                  </div>
-                )}
 
-                {/* TAB 2: ACTIVE SCHOOL REQUEST SEARCH REPOSITORY */}
-                {activeTab === 'SCHOOLS' && (
-                  <div className="space-y-4">
-                    <div className="text-xs text-slate-500 font-medium">Click any active structural card parameters item entry down below to directly evaluate and commit localized funds loop.</div>
-                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {requests.map(req => {
-                        const completionPercentage = Math.round((req.currentAmount / req.targetAmount) * 100);
-                        return (
-                          <div key={req.id} className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col justify-between shadow-sm relative hover:border-amber-400 transition">
-                            <div className="space-y-2">
-                              <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider block">{req.location}</span>
-                              <h4 className="font-bold text-slate-900 text-sm">{req.schoolName}</h4>
-                              <p className="text-xs text-slate-600 bg-amber-50/50 border border-amber-200/40 px-2 py-1 rounded w-fit font-mono">{req.category} Allocation Kit</p>
-                              <p className="text-xs text-slate-500 line-clamp-2 italic mt-2">"{req.motivation}"</p>
-                            </div>
-
-                            <div className="pt-4 space-y-3 border-t border-slate-100 mt-4">
-                              <div className="flex justify-between text-[11px] font-bold">
-                                <span className="text-slate-400">Status Vector:</span>
-                                <span className="text-slate-800 font-mono text-[10px]">{req.status.split(' ')[0]}</span>
-                              </div>
-                              <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                                <div className="bg-[#D39313] h-full" style={{ width: `${Math.min(completionPercentage, 100)}%` }}></div>
-                              </div>
-                              <div className="flex justify-between items-center text-[11px] font-bold pt-1">
-                                <span>Target: R {req.targetAmount}</span>
-                                <span className="text-[#D39313]">{completionPercentage}% Met</span>
-                              </div>
-
-                              {activeRole === 'SPONSOR' && (
-                                <button onClick={() => setSelectedRequest(req)} className="w-full bg-[#D39313] hover:bg-[#B77F0F] text-white text-xs font-bold py-2 rounded-lg transition uppercase tracking-wider text-[10px]">
-                                  Initiate Funding Evaluation &rarr;
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
+                    <div className="bg-[#161920] border border-slate-800/60 rounded-xl p-6 flex flex-col justify-between space-y-4">
+                      <div className="space-y-2">
+                        <h3 className="text-xs font-bold text-white uppercase tracking-wider">Need Help?</h3>
+                        <p className="text-xs text-slate-400 leading-relaxed">Learn how to request corporate sponsorship frameworks and safely redeem supplier digital item vouchers using our resource playbook guidelines.</p>
+                      </div>
+                      <button className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs py-2.5 rounded-lg border border-slate-700 transition">View Guide Playbook</button>
                     </div>
                   </div>
-                )}
 
-                {/* TAB 3: TRANSACTION AUDITS LEDGER */}
-                {activeTab === 'TRANSACTIONS' && (
-                  <div className="bg-white rounded-xl border border-slate-200/80 p-6 space-y-4">
-                    <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide">Closed Loop Voucher Ledger Accounts</h3>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs divide-y divide-slate-100">
-                        <thead>
-                          <tr className="text-[10px] font-bold text-slate-400 uppercase bg-slate-50/50">
-                            <th className="p-3">Reference Node</th>
-                            <th className="p-3">Beneficiary Account</th>
-                            <th className="p-3">Resource Focus Array</th>
-                            <th className="p-3">Committed Volume</th>
-                            <th className="p-3">Internal System State</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                          {requests.map(req => (
-                            <tr key={req.id} className="hover:bg-slate-50/60 transition">
-                              <td className="p-3 font-mono text-slate-400 font-bold">{req.id}-TX</td>
-                              <td className="p-3 font-bold text-slate-900">{req.schoolName}</td>
-                              <td className="p-3 text-slate-500">{req.category} Allocation</td>
-                              <td className="p-3 font-bold text-slate-900">R {req.currentAmount.toLocaleString()}</td>
-                              <td className="p-3">
-                                <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
-                                  {req.status}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                  {/* NEW DESIGN SEGMENT 6: REQUEST STATUS LEGEND MAPPER EXPLAINED */}
+                  <div className="bg-[#161920] border border-slate-800/60 rounded-xl p-6 space-y-4">
+                    <h3 className="text-xs font-bold text-white uppercase tracking-wider">Pipeline Request Status Matrix Guide</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+                      {[
+                        { title: 'Pending', desc: 'Awaiting primary sponsor review allocations.', color: 'bg-amber-500 text-stone-950' },
+                        { title: 'Under Review', desc: 'Sponsor corporate networks are actively reviewing assets.', color: 'bg-blue-500 text-white' },
+                        { title: 'Approved', desc: 'Request fully approved by sponsoring groups.', color: 'bg-emerald-500 text-white' },
+                        { title: 'Completed', desc: 'Digital supply chain vouchers fully issued & fulfilled.', color: 'bg-purple-500 text-white' }
+                      ].map((item, idx) => (
+                        <div key={idx} className="p-4 bg-[#1C202B] border border-slate-800/60 rounded-xl space-y-2">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${item.color}`}>{item.title}</span>
+                          <p className="text-slate-400 text-[11px] leading-relaxed">{item.desc}</p>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                )}
+                </div>
+              )}
 
-                {/* TAB 4: COMPLIANCE REPORTS OVERVIEW */}
-                {activeTab === 'REPORTS' && (
-                  <div className="bg-white p-6 rounded-xl border border-slate-200/80 space-y-4 text-xs">
-                    <h3 className="font-bold text-slate-900 uppercase tracking-wide text-xs">B-BBEE &amp; Corporate Social Investment Compliance Summary</h3>
-                    <p className="text-slate-500 leading-relaxed">All generated records loop matching logs safely down to verified institutional EMIS references. Download the complete packet summary anytime via the upper management task section actions.</p>
-                    <div className="p-4 bg-slate-50 border rounded-lg max-w-sm font-mono space-y-2 text-[11px]">
-                      <p><strong>Total Audited Spend:</strong> R {requests.reduce((a,c)=>a+c.currentAmount,0).toLocaleString()} ZAR</p>
-                      <p><strong>Verification Hash:</strong> SB-2026-F63K9B11X</p>
-                      <p><strong>Status Scorecard:</strong> Active &amp; Validated Compliance Node</p>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
+              {/* fallback message for secondary navigation frames */}
+              {subView !== 'DASHBOARD' && (
+                <div className="bg-[#161920] border border-slate-800/60 rounded-xl p-12 text-center text-slate-400 space-y-4">
+                  <p className="text-xs font-mono">Secondary view layout frame index node: [ {subView} ] is connected to tracking workflows.</p>
+                  <button onClick={() => setSubView('DASHBOARD')} className="bg-[#D39313] text-white text-xs font-bold px-4 py-2 rounded-lg">Return to main dashboard overview hub</button>
+                </div>
+              )}
 
+            </div>
           </div>
-        )}
 
-      </main>
+        </div>
+      )}
 
-      <footer className="bg-slate-900 border-t border-stone-800 text-stone-500 py-8 px-6 text-center text-xs font-medium mt-12">
-        <p>© 2026 SponsorBuddy (Pty) Ltd. CSI Procurement Delivery Systems. Closed Loop Audit Ledger Tracking Frame index.</p>
-      </footer>
-      
+      {/* =========================================================================
+          WIZARD MODAL DIALOGUE POPUP (CLEAN NEW RESOURCE REQUEST FLOW)
+         ========================================================================= */}
+      {showRequestModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-[#161920] border border-slate-800 rounded-2xl w-full max-w-xl p-6 shadow-2xl text-white space-y-6">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <h3 className="text-base font-black uppercase tracking-wider text-white">Create New Resource Request Pipeline</h3>
+              <button onClick={() => setShowRequestModal(false)} className="text-slate-400 hover:text-white font-bold text-xs">✕</button>
+            </div>
+            <form onSubmit={handleCreateRequest} className="space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="block text-slate-400 font-bold uppercase tracking-wide">Category Framework</label>
+                  <select value={newCategory} onChange={e => setNewCategory(e.target.value as any)} className="w-full bg-[#1C202B] border border-slate-700 p-2.5 rounded-xl text-white font-medium focus:outline-none focus:border-[#D39313]">
+                    <option value="Textbooks">Textbooks</option>
+                    <option value="Infrastructure">Infrastructure</option>
+                    <option value="Sport Equipment">Sport Equipment</option>
+                    <option value="Classroom Furniture">Classroom Furniture</option>
+                    <option value="Sanitation">Sanitation</option>
+                    <option value="Stationery">Stationery</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-slate-400 font-bold uppercase tracking-wide">Quantity Requirements</label>
+                  <input type="number" required placeholder="e.g. 150" value={newQty} onChange={e => setNewQty(e.target.value)} className="w-full bg-[#1C202B] border border-slate-700 p-2.5 rounded-xl text-white focus:outline-none focus:border-[#D39313]" />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="block text-slate-400 font-bold uppercase tracking-wide">Estimated Supplier Cost Framework (ZAR)</label>
+                <input type="number" required placeholder="e.g. 8500" value={newCost} onChange={e => setNewCost(e.target.value)} className="w-full bg-[#1C202B] border border-slate-700 p-2.5 rounded-xl text-white focus:outline-none focus:border-[#D39313]" />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-slate-400 font-bold uppercase tracking-wide">Institutional Project Motivation Statements</label>
+                <textarea required rows={3} placeholder="Provide structural justification metrics parameters..." value={newMotivation} onChange={e => setNewMotivation(e.target.value)} className="w-full bg-[#1C202B] border border-slate-700 p-2.5 rounded-xl text-white focus:outline-none focus:border-[#D39313]" />
+              </div>
+              <div className="flex gap-3 pt-2 justify-end text-xs font-bold">
+                <button type="button" onClick={() => setShowRequestModal(false)} className="px-4 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-white transition">Cancel</button>
+                <button type="submit" className="bg-[#D39313] text-white px-5 py-2 rounded-xl shadow transition">Inject Request Node &rarr;</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
